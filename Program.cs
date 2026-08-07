@@ -4,11 +4,13 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
+using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 
 namespace DailyWallpaper;
 
-class Program
+static class Program
 {
     private const int SPI_SETDESKWALLPAPER = 0x0014;
     private const int SPIF_UPDATEINIFILE = 0x01;
@@ -17,20 +19,68 @@ class Program
     [DllImport("user32.dll", CharSet = CharSet.Auto)]
     private static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
 
-    static async Task Main(string[] args)
-    {
-        Console.WriteLine("Starting Daily Wallpaper Changer...");
+    private static NotifyIcon? _notifyIcon;
+    private static System.Threading.Timer? _timer;
 
+    [STAThread]
+    static void Main()
+    {
+        Application.EnableVisualStyles();
+        Application.SetCompatibleTextRenderingDefault(false);
+
+        // Setup System Tray Icon
+        _notifyIcon = new NotifyIcon()
+        {
+            Icon = new System.Drawing.Icon("icon.ico"),
+            Text = "Daily Wallpaper",
+            Visible = true
+        };
+
+        var contextMenu = new ContextMenuStrip();
+        var exitMenuItem = new ToolStripMenuItem("Exit");
+        exitMenuItem.Click += (s, e) => Application.Exit();
+        contextMenu.Items.Add(exitMenuItem);
+
+        _notifyIcon.ContextMenuStrip = contextMenu;
+
+        // Perform initial update asynchronously
+        Task.Run(UpdateWallpaperAsync);
+
+        // Schedule timer to trigger at next midnight
+        ScheduleNextUpdate();
+
+        Application.Run();
+
+        // Cleanup
+        _notifyIcon.Dispose();
+        _timer?.Dispose();
+    }
+
+    private static void ScheduleNextUpdate()
+    {
+        var now = DateTime.Now;
+        var tomorrow = now.Date.AddDays(1);
+        var timeUntilMidnight = tomorrow - now;
+
+        _timer = new System.Threading.Timer(
+            e =>
+            {
+                Task.Run(UpdateWallpaperAsync);
+                ScheduleNextUpdate();
+            },
+            null,
+            timeUntilMidnight,
+            Timeout.InfiniteTimeSpan
+        );
+    }
+
+    private static async Task UpdateWallpaperAsync()
+    {
         try
         {
             // 1. Fetch Bing Daily Image URL
             string? imageUrl = await GetBingDailyImageUrlAsync();
-            if (string.IsNullOrEmpty(imageUrl))
-            {
-                Console.WriteLine("Failed to get Bing image URL.");
-                return;
-            }
-            Console.WriteLine($"Found image URL: {imageUrl}");
+            if (string.IsNullOrEmpty(imageUrl)) return;
 
             // 2. Download Image
             string picturesFolder = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
@@ -46,27 +96,18 @@ class Program
 
             if (!File.Exists(localFilePath))
             {
-                Console.WriteLine($"Downloading image to {localFilePath}...");
                 await DownloadImageAsync(imageUrl, localFilePath);
-            }
-            else
-            {
-                Console.WriteLine($"Image already exists at {localFilePath}.");
             }
 
             // 3. Set Wallpaper
-            Console.WriteLine("Setting desktop wallpaper...");
             SystemParametersInfo(SPI_SETDESKWALLPAPER, 0, localFilePath, SPIF_UPDATEINIFILE | SPIF_SENDWININICHANGE);
 
             // 4. Set Registry for Auto Colorization
-            Console.WriteLine("Updating registry for Auto Colorization...");
             EnableAutoColorization();
-            
-            Console.WriteLine("Done!");
         }
-        catch (Exception ex)
+        catch
         {
-            Console.WriteLine($"An error occurred: {ex.Message}");
+            // Background thread exception swallowing (silently fail in background)
         }
     }
 
@@ -87,11 +128,7 @@ class Program
                 string? urlPath = urlElement.GetString();
                 if (!string.IsNullOrEmpty(urlPath))
                 {
-                    if (urlPath.StartsWith("/"))
-                    {
-                        // Some endpoints return 1920x1080. We can try to get UHD by replacing it, but 1920x1080 is safe.
-                        return "https://www.bing.com" + urlPath;
-                    }
+                    if (urlPath.StartsWith("/")) return "https://www.bing.com" + urlPath;
                     return urlPath;
                 }
             }
@@ -112,26 +149,13 @@ class Program
         {
             using (RegistryKey? key = Registry.CurrentUser.OpenSubKey(@"Control Panel\Desktop", writable: true))
             {
-                if (key != null)
-                {
-                    key.SetValue("AutoColorization", 1, RegistryValueKind.DWord);
-                    Console.WriteLine("AutoColorization enabled.");
-                }
+                if (key != null) key.SetValue("AutoColorization", 1, RegistryValueKind.DWord);
             }
-
             using (RegistryKey? key = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\DWM", writable: true))
             {
-                if (key != null)
-                {
-                    // Also enable color on taskbar/start menu (optional, but usually desired for full theme effect)
-                    key.SetValue("ColorPrevalence", 1, RegistryValueKind.DWord);
-                    Console.WriteLine("ColorPrevalence enabled.");
-                }
+                if (key != null) key.SetValue("ColorPrevalence", 1, RegistryValueKind.DWord);
             }
         }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to update registry: {ex.Message}");
-        }
+        catch { }
     }
 }

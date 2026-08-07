@@ -28,24 +28,10 @@ static class Program
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
 
-        // Load the icon via Bitmap to support PNG compression properly
-        System.Drawing.Icon appIcon;
-        try
-        {
-            using (var bmp = new System.Drawing.Bitmap("icon.ico"))
-            {
-                appIcon = System.Drawing.Icon.FromHandle(bmp.GetHicon());
-            }
-        }
-        catch
-        {
-            appIcon = System.Drawing.SystemIcons.Application;
-        }
-
         // Setup System Tray Icon
         _notifyIcon = new NotifyIcon()
         {
-            Icon = appIcon,
+            Icon = new System.Drawing.Icon("icon.ico"),
             Text = "Daily Wallpaper",
             Visible = true
         };

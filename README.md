@@ -1,6 +1,8 @@
-# Daily Wallpaper Changer
+#  Daily Wallpaper Changer
 
 A lightweight C# System Tray application that automatically changes your Windows desktop wallpaper every day using high-quality images from Bing. It runs silently in the background and automatically refreshes your wallpaper exactly at midnight! Additionally, it adjusts your Windows system accent color to match the new wallpaper, giving you a fresh and seamless desktop experience every day.
+
+<img width="48" height="48" alt="icon-4" src="https://github.com/user-attachments/assets/a461a13a-9c63-492b-bfe0-970a0d5b7097" />
 
 ## Features
 - **Daily Updates at Midnight**: The app stays alive in the system tray and fetches the new Bing Image of the Day automatically as soon as the clock strikes midnight, without needing to restart your PC or the application.

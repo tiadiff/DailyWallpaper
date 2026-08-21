@@ -123,6 +123,20 @@ static class Program
         if (root.TryGetProperty("images", out JsonElement images) && images.GetArrayLength() > 0)
         {
             JsonElement firstImage = images[0];
+            
+            // Try to get the UHD version using urlbase
+            if (firstImage.TryGetProperty("urlbase", out JsonElement urlbaseElement))
+            {
+                string? urlbase = urlbaseElement.GetString();
+                if (!string.IsNullOrEmpty(urlbase))
+                {
+                    string uhdUrl = urlbase + "_UHD.jpg";
+                    if (uhdUrl.StartsWith("/")) return "https://www.bing.com" + uhdUrl;
+                    return uhdUrl;
+                }
+            }
+
+            // Fallback to the standard url
             if (firstImage.TryGetProperty("url", out JsonElement urlElement))
             {
                 string? urlPath = urlElement.GetString();
